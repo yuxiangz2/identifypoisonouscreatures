@@ -1,0 +1,104 @@
+#######################################################################
+# Author: Yuxiang Zhou<705077>  
+# Date: 29 Oct 2015                        
+# File Name: configuration.yml
+# Description : Directly deploying the environment of this system
+#######################################################################
+
+- hosts: serverHost
+  sudo: yes
+  sudo_user: root
+  tasks:
+    - name: update
+      apt: update_cache=yes
+
+#mount the volume to the instance
+    - name: create a directory data
+      file: path=/mnt/data state=directory
+    - name: create a directory Database
+      file: path=/mnt/data/Database state=directory
+    - name: format disk as ext4
+      filesystem: fstype=ext4 dev=/dev/vdc
+    - name: mount volume
+      mount: name=/mnt/data/ src=/dev/vdc fstype=ext4 state=mounted
+
+# install all the python-package, python and pip
+    - name: Install python
+      apt: pkg=python state=latest
+    - name: install pip
+      apt: pkg=python-pip state=latest
+    - name: install nltk via pip
+      pip: name=nltk
+    - name: install python-package via apt
+      apt: pkg={{ item }} state=latest
+      with_items:
+       - python-numpy
+       - python-scipy
+       - libblas-dev
+       - liblapack-dev
+       - python-matplotlib
+    - name: upgrade Numpy via pip
+      pip: name=numpy state=latest
+    - name: upgrade TextBlob via pip
+      pip: name=TextBlob state=latest
+    - name: Install tweepy pattern shapely sslscurity couchdb
+      pip: name= {{ item }}
+      with_items:
+       - tweepy
+       - pattern
+       - couchdb
+       - couchquery
+
+# install needed application
+    - name: Install JDK7
+      apt: pkg=openjdk-7-jdk state=latest
+    - name: Install tomcat7
+      apt: pkg=tomcat7 state=latest
+    - name: Install tomcat7-admin
+      apt: pkg=tomcat7-admin state=latest
+    - name: Install couchDB
+      apt: pkg=couchdb state=latest
+    - name: Install python-couchDB
+      apt: pkg=python-couchdb state=latest
+    - name: Install make
+      apt: pkg=make
+    - name: Install vim
+      apt: pkg=vim state=latest
+
+# change the config of couchdb and apache2
+    - name: change port number
+      lineinfile: dest=/etc/couchdb/local.ini
+                  regexp='^;port'
+                  insertafter="[httpd]"
+                  line="port = 5984"
+    - name: change bind_address
+      lineinfile: dest=/etc/couchdb/local.ini
+                  regexp='^;bind_address'
+                  insertafter="port"
+                  line="bind_address = 0.0.0.0"
+    - name: add directory for directory
+      lineinfile: dest=/etc/couchdb/local.ini
+                  regexp="^database_dir"
+                  insertafter="^uuid"
+                  line="database_dir = /mnt/data/Database/couchdb\nview_index_dir = /mnt/data/Database/couchdb"
+    - name: write access directory in alias
+      lineinfile: dest=/etc/apparmor.d/tunables/alias
+                  regexp=''
+                  insertafter=EOF
+                  line="alias /var/lib/couchdb/ -> /mnt/data/Database/couchdb/,"
+    - name: create a directory Database
+      file: path=/mnt/data/Database state=directory
+    - name: copy couchdb directory
+      shell: cp -R -p /var/lib/couchdb/ /mnt/data/Database/couchdb
+    - name: Change PATH for vertx
+      shell: >
+          PATH=$PATH:/home/ubuntu/vert.x-2.1.5/bin
+    - name: restart a service couchdb
+      service: name=couchdb state=restarted
+    - name: restart a service tomcat7
+      service: name=tomcat7 state=restarted
+
+#get TextBlob
+    - name: install TextBlob via Python
+      command: > 
+          python -m textblob.download_corpora
